@@ -24,6 +24,9 @@ release:
 # Builds the debug binary with symbols, statically compiled.
 debug:
 	@echo "Building debug version $(VERSION)..."
+	go fmt
+	go mod tidy
+	go vet
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 go build -a -tags $(BUILD_TAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-debug $(LDFLAGS_DEBUG) .
 
