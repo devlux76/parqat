@@ -61,7 +61,7 @@ func StreamingToParquet(w io.Writer, r io.Reader, config WriterConfig) error {
 			return fmt.Errorf("decoding json for sampling: %w", err)
 		}
 
-		sampleRows = append(sampleRows, row)
+		sampleRows = append(sampleRows, convertArraysToStrings(row))
 
 		// Write to temp file
 		if err := json.NewEncoder(tempFile).Encode(row); err != nil {
@@ -133,7 +133,9 @@ func StreamingToParquet(w io.Writer, r io.Reader, config WriterConfig) error {
 
 		// Write batch to parquet
 		for _, row := range batch {
-			if err := writer.Write(row); err != nil {
+			// Convert array values to strings for reliable parquet storage
+			convertedRow := convertArraysToStrings(row)
+			if err := writer.Write(convertedRow); err != nil {
 				return fmt.Errorf("writing row to parquet: %w", err)
 			}
 		}
@@ -226,11 +228,12 @@ func buildNodeFromStats(stats *fieldAnalysis) (parquet.Node, error) {
 
 	var node parquet.Node
 
-	// Handle array types
+	// Handle array types - following WWJD pattern: convert arrays to strings to avoid known bugs
+	// See GitHub issues #304, #268, #267, #185, #187 - complex types cause panics and corruption
 	if dominantType != nil && dominantType.Kind() == reflect.Slice {
-		// For arrays, always use string elements to avoid type conflicts
-		// This is safer and more compatible with diverse JSON data
-		node = parquet.Repeated(parquet.String())
+		// Arrays are converted to JSON strings to avoid known reflection bugs and corruption
+		// This is the safe approach until upstream bugs are fixed
+		node = parquet.String()
 	} else if dominantType != nil {
 		node = createLeafNode(dominantType)
 	} else {
@@ -264,6 +267,34 @@ func createLeafNode(t reflect.Type) parquet.Node {
 		// Default to string for unknown types
 		return parquet.String()
 	}
+}
+
+// convertArraysToStrings converts any slice values to JSON strings to avoid mixed type issues
+// This follows the WWJD pattern from parquet-go tests and avoids known bugs #304, #268, #267, #185, #187
+func convertArraysToStrings(row map[string]any) map[string]any {
+	convertedRow := make(map[string]any)
+	for key, value := range row {
+		if value == nil {
+			convertedRow[key] = nil
+			continue
+		}
+
+		t := reflect.TypeOf(value)
+		// Convert complex types (slices, maps, structs) to JSON strings for safety
+		// This avoids reflection panics and data corruption in the parquet library
+		switch t.Kind() {
+		case reflect.Slice, reflect.Map, reflect.Struct:
+			// Convert complex types to JSON string for reliable storage
+			if jsonBytes, err := json.Marshal(value); err == nil {
+				convertedRow[key] = string(jsonBytes)
+			} else {
+				convertedRow[key] = fmt.Sprintf("%v", value)
+			}
+		default:
+			convertedRow[key] = value
+		}
+	}
+	return convertedRow
 }
 
 // ToParquet is the backward-compatible function with performance improvements
@@ -308,7 +339,9 @@ func toParquetOptimized(w io.Writer, r io.Reader, config WriterConfig) error {
 			}
 			return fmt.Errorf("decoding json: %w", err)
 		}
-		allRows = append(allRows, row)
+		// Convert arrays to strings before schema inference
+		convertedRow := convertArraysToStrings(row)
+		allRows = append(allRows, convertedRow)
 	}
 
 	if len(allRows) == 0 {
@@ -339,6 +372,8 @@ func toParquetOptimized(w io.Writer, r io.Reader, config WriterConfig) error {
 		end := min(i+batchSize, len(allRows))
 		batch := allRows[i:end]
 		for _, row := range batch {
+			// Convert array values to strings for reliable parquet storage
+			row = convertArraysToStrings(row)
 			if err := writer.Write(row); err != nil {
 				return fmt.Errorf("writing row to parquet: %w", err)
 			}

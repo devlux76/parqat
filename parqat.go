@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/parquet-go/parquet-go"
 	"github.com/spf13/cobra"
 )
 
@@ -16,19 +17,34 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "parqat [file]",
-	Short: "A simple cat-like tool for converting between JSON and Parquet formats",
-	Long: `parqat v` + version + ` - A lightweight, streaming tool for converting between JSON and Parquet formats.
+	Short: "A high-performance tool for converting between JSON and Parquet formats",
+	Long: `parqat v` + version + ` - A SIMD-optimized, streaming tool for converting between JSON and Parquet formats.
 Designed to sit in Unix pipelines like cat, tail, grep, sed, awk, etc.
+
+Features:
+- SIMD-optimized defaults (power-of-2 buffer sizes for Go 1.25+)
+- Safe handling of complex types (arrays, maps, nested objects)
+- Streaming mode for large datasets
+- Multiple compression algorithms (zstd default for best performance)
+- Configurable row group sizes and page buffers
 
 If given a parquet file, converts it to JSON.
 If given JSON from stdin, converts it to Parquet.
 
 Examples:
-  cat data.json | parqat -o data.parquet        # JSON to Parquet
-  parqat data.parquet                           # Parquet to JSON
-  parqat data.parquet --head 10                 # First 10 rows
-  parqat data.parquet --tail 5                  # Last 5 rows
-  echo '{"name":"John"}' | parqat > data.parquet # JSON to Parquet
+  cat data.json | parqat -o data.parquet              # JSON to Parquet (default settings)
+  cat data.json | parqat --streaming -o data.parquet  # Streaming mode for large files
+  cat data.json | parqat --compression snappy -o data.parquet  # Use Snappy compression
+  parqat data.parquet                                  # Parquet to JSON
+  parqat data.parquet --head 10                        # First 10 rows
+  parqat data.parquet --tail 5                         # Last 5 rows
+  echo '{"name":"John","tags":["user","admin"]}' | parqat > data.parquet  # Complex JSON
+
+Performance Options:
+  --compression: none, snappy, gzip, zstd (default: zstd)
+  --page-buffer-size: Buffer size in bytes (default: 262144 = 2^18)
+  --max-rows-per-group: Rows per group (default: 1048576 = 2^20)
+  --streaming: Enable for large datasets (uses temp files)
 
 Created by ` + company + ` - https://github.com/syntropiq/parqat`,
 	Args: cobra.MaximumNArgs(1),
@@ -55,15 +71,31 @@ Created by ` + company + ` - https://github.com/syntropiq/parqat`,
 			defer file.Close()
 			w = file
 		}
-		return ToParquet(w, os.Stdin)
+
+		// Create writer configuration from command line flags
+		config := createWriterConfig()
+
+		if enableStreaming {
+			return StreamingToParquet(w, os.Stdin, config)
+		}
+		return ToParquetWithConfig(w, os.Stdin, config)
 	},
 }
 
 func init() {
+	// Basic flags
 	rootCmd.Flags().IntVar(&head, "head", 0, "Number of rows to read from the beginning")
 	rootCmd.Flags().IntVar(&tail, "tail", 0, "Number of rows to read from the end")
 	rootCmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output Parquet file path. If not provided, output is written to stdout.")
 	rootCmd.Flags().BoolP("version", "v", false, "Show version information")
+
+	// Writer configuration flags (SIMD-optimized defaults)
+	rootCmd.Flags().StringVar(&compressionType, "compression", "zstd", "Compression type: none, snappy, gzip, zstd (default: zstd for best performance)")
+	rootCmd.Flags().IntVar(&pageBufferSize, "page-buffer-size", 256*1024, "Page buffer size in bytes (default: 262144 = 2^18, SIMD-optimized)")
+	rootCmd.Flags().Int64Var(&maxRowsPerGroup, "max-rows-per-group", 1048576, "Maximum rows per row group (default: 1048576 = 2^20, SIMD-optimized)")
+	rootCmd.Flags().IntVar(&dataPageVersion, "data-page-version", 2, "Data page version (1 or 2, default: 2 for better performance)")
+	rootCmd.Flags().BoolVar(&enableDictionary, "enable-dictionary", true, "Enable dictionary encoding for better compression")
+	rootCmd.Flags().BoolVar(&enableStreaming, "streaming", false, "Enable streaming mode for large datasets (uses temp files)")
 
 	// Handle version flag
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
@@ -92,3 +124,43 @@ var (
 	head int
 	tail int
 )
+
+// Writer configuration flags with SIMD-optimized defaults
+var (
+	compressionType  string
+	pageBufferSize   int
+	maxRowsPerGroup  int64
+	dataPageVersion  int
+	enableDictionary bool
+	enableStreaming  bool
+)
+
+// createWriterConfig creates a WriterConfig from command line flags
+func createWriterConfig() WriterConfig {
+	config := DefaultWriterConfig()
+
+	// Override with command line flags
+	switch compressionType {
+	case "none":
+		config.Codec = &parquet.Uncompressed
+	case "snappy":
+		config.Codec = &parquet.Snappy
+	case "gzip":
+		config.Codec = &parquet.Gzip
+	case "zstd":
+		config.Codec = &parquet.Zstd
+		// default already set to zstd in DefaultWriterConfig
+	}
+
+	config.PageBufferSize = pageBufferSize
+	config.MaxRowsPerRowGroup = maxRowsPerGroup
+	config.DataPageVersion = dataPageVersion
+	config.UseDictionary = enableDictionary
+
+	return config
+}
+
+// ToParquetWithConfig wraps ToParquet with configuration
+func ToParquetWithConfig(w io.Writer, r io.Reader, config WriterConfig) error {
+	return toParquetOptimized(w, r, config)
+}
