@@ -9,15 +9,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
+/*
+Package main implements the parqat CLI tool for converting between JSON and Parquet formats.
+It provides high-performance, streaming, and SIMD-optimized options for large-scale data processing.
+*/
+
 // Version info (set by build flags)
 var (
-	version = "dev"
+	version = "1.0.0"
 	company = "syntropiq"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "parqat [file]",
 	Short: "A high-performance tool for converting between JSON and Parquet formats",
+	// Long provides detailed usage, features, and examples for the CLI.
 	Long: `parqat v` + version + ` - A SIMD-optimized, streaming tool for converting between JSON and Parquet formats.
 Designed to sit in Unix pipelines like cat, tail, grep, sed, awk, etc.
 
@@ -107,6 +113,10 @@ func init() {
 	}
 }
 
+/*
+Execute runs the root Cobra command for the CLI.
+It handles command-line parsing and error reporting.
+*/
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -135,7 +145,10 @@ var (
 	enableStreaming  bool
 )
 
-// createWriterConfig creates a WriterConfig from command line flags
+/*
+createWriterConfig creates a WriterConfig from command line flags.
+It applies user-specified compression, buffer sizes, and other performance options.
+*/
 func createWriterConfig() WriterConfig {
 	config := DefaultWriterConfig()
 
@@ -160,7 +173,10 @@ func createWriterConfig() WriterConfig {
 	return config
 }
 
-// ToParquetWithConfig wraps ToParquet with configuration
+/*
+ToParquetWithConfig wraps ToParquet with a custom WriterConfig.
+It allows fine-tuned control over Parquet writing parameters.
+*/
 func ToParquetWithConfig(w io.Writer, r io.Reader, config WriterConfig) error {
 	return toParquetOptimized(w, r, config)
 }

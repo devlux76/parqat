@@ -11,7 +11,8 @@ import (
 	"github.com/parquet-go/parquet-go/compress"
 )
 
-// WriterConfig holds configuration for parquet writing
+// WriterConfig holds configuration for parquet writing.
+// It allows customization of compression, buffer sizes, row group sizes, and encoding options.
 type WriterConfig struct {
 	Codec               compress.Codec
 	PageBufferSize      int
@@ -21,7 +22,8 @@ type WriterConfig struct {
 	DefaultEncodingType string
 }
 
-// DefaultWriterConfig returns sensible defaults for performance
+// DefaultWriterConfig returns sensible defaults for performance.
+// Uses SIMD-optimized buffer sizes and Zstd compression.
 func DefaultWriterConfig() WriterConfig {
 	return WriterConfig{
 		Codec:              &parquet.Zstd, // Better compression than default
@@ -32,7 +34,10 @@ func DefaultWriterConfig() WriterConfig {
 	}
 }
 
-// StreamingToParquet writes JSON to Parquet in a streaming fashion without loading all data into memory
+/*
+StreamingToParquet writes JSON to Parquet in a streaming fashion without loading all data into memory.
+It samples the first N rows for schema inference, then streams the rest to a temporary file for efficient processing.
+*/
 func StreamingToParquet(w io.Writer, r io.Reader, config WriterConfig) error {
 	// Create a buffer to collect rows for schema inference
 	var sampleRows []map[string]any
@@ -144,7 +149,10 @@ func StreamingToParquet(w io.Writer, r io.Reader, config WriterConfig) error {
 	return writer.Close()
 }
 
-// buildOptimizedSchema analyzes sample rows to build an optimized schema
+/*
+buildOptimizedSchema analyzes sample rows to build an optimized Parquet schema.
+It infers field types, nullability, and handles arrays safely for compatibility.
+*/
 func buildOptimizedSchema(sampleRows []map[string]any) (*parquet.Schema, error) {
 	if len(sampleRows) == 0 {
 		return nil, fmt.Errorf("no sample rows provided")
@@ -205,6 +213,10 @@ func buildOptimizedSchema(sampleRows []map[string]any) (*parquet.Schema, error) 
 	return parquet.NewSchema("row", schemaFields), nil
 }
 
+/*
+fieldAnalysis holds statistics for a single field across sample rows.
+Used for schema inference and type analysis.
+*/
 type fieldAnalysis struct {
 	name       string
 	totalCount int
@@ -214,6 +226,10 @@ type fieldAnalysis struct {
 	arrayTypes map[reflect.Type]int
 }
 
+/*
+buildNodeFromStats creates a Parquet node for a field based on its observed types and nullability.
+Handles arrays by converting them to strings for safety.
+*/
 func buildNodeFromStats(stats *fieldAnalysis) (parquet.Node, error) {
 	// Determine the most common type
 	var dominantType reflect.Type
@@ -249,6 +265,8 @@ func buildNodeFromStats(stats *fieldAnalysis) (parquet.Node, error) {
 	return node, nil
 }
 
+// createLeafNode returns a Parquet leaf node for a given Go type.
+// Falls back to string for unknown or unsupported types.
 func createLeafNode(t reflect.Type) parquet.Node {
 	switch t.Kind() {
 	case reflect.String:
@@ -269,8 +287,10 @@ func createLeafNode(t reflect.Type) parquet.Node {
 	}
 }
 
-// convertArraysToStrings converts any slice values to JSON strings to avoid mixed type issues
-// This follows the WWJD pattern from parquet-go tests and avoids known bugs #304, #268, #267, #185, #187
+/*
+convertArraysToStrings converts any slice, map, or struct values to JSON strings to avoid mixed type issues.
+This follows the WWJD pattern from parquet-go tests and avoids known bugs #304, #268, #267, #185, #187.
+*/
 func convertArraysToStrings(row map[string]any) map[string]any {
 	convertedRow := make(map[string]any)
 	for key, value := range row {
@@ -297,7 +317,10 @@ func convertArraysToStrings(row map[string]any) map[string]any {
 	return convertedRow
 }
 
-// ToParquet is the backward-compatible function with performance improvements
+/*
+ToParquet is the backward-compatible function for writing JSON to Parquet with performance improvements.
+Uses default configuration for typical use cases.
+*/
 func ToParquet(w io.Writer, r io.Reader) error {
 	config := DefaultWriterConfig()
 
@@ -306,6 +329,10 @@ func ToParquet(w io.Writer, r io.Reader) error {
 	return toParquetOptimized(w, r, config)
 }
 
+/*
+toParquetOptimized implements the core logic for converting JSON to Parquet efficiently.
+Streams input to a temp file, infers schema, and writes in optimized batches.
+*/
 func toParquetOptimized(w io.Writer, r io.Reader, config WriterConfig) error {
 	// Create a temporary file to store JSON data
 	tempFile, err := os.CreateTemp("", "parqat_temp_*.json")

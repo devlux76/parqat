@@ -1,5 +1,7 @@
 # parqat Performance Configuration
 
+**Version: 1.0.0**
+
 ## Overview
 
 parqat now includes SIMD-optimized defaults and configurable performance options for maximum throughput and data safety.

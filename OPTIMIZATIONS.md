@@ -1,37 +1,41 @@
 # Parquet Writer Optimizations
 
-Based on analysis of the upstream parquet-go library tests and best practices, I've implemented several optimizations to improve performance, flexibility, and robustness of the parquet writing functionality.
+**Version: 1.0.0**
+
+For advanced performance and reliability, parqat implements several optimizations based on best practices and analysis of the upstream parquet-go library. See [PERFORMANCE.md](PERFORMANCE.md) for configuration flags and benchmarks.
 
 ## Key Improvements
 
 ### 1. **Enhanced Type Inference**
-- **Better Schema Analysis**: The new `buildOptimizedSchema()` function analyzes sample data to determine the most appropriate parquet types for each field
-- **Nullable Field Detection**: Automatically detects nullable fields by analyzing actual data rather than just the first row
-- **Array Type Inference**: Properly handles arrays by analyzing array element types across multiple samples
-- **Dominant Type Selection**: Uses statistical analysis to choose the most common type when fields have mixed types
+- **Better Schema Analysis**: The new `buildOptimizedSchema()` function analyzes sample data to determine the most appropriate parquet types for each field.
+- **Nullable Field Detection**: Automatically detects nullable fields by analyzing actual data rather than just the first row.
+- **Array Type Inference**: Properly handles arrays by analyzing array element types across multiple samples.
+- **Dominant Type Selection**: Uses statistical analysis to choose the most common type when fields have mixed types.
 
 ### 2. **Performance Optimizations**
-- **Zstd Compression**: Default configuration uses Zstd compression which provides better compression ratios than the default
-- **Page Buffer Optimization**: Configurable page buffer sizes optimized for different dataset sizes
-- **Batch Processing**: Processes rows in batches (10,000 rows per batch) to reduce memory pressure
-- **Data Page Version 2**: Uses the more efficient data page format version 2 by default
-- **Statistics Generation**: Enables page statistics for better query performance
+- **Zstd Compression**: Default configuration uses Zstd compression for best ratio.
+- **SIMD-optimized Buffers**: All buffer sizes are powers of 2 for maximum throughput.
+- **Page Buffer Optimization**: Configurable page buffer sizes optimized for different dataset sizes.
+- **Batch Processing**: Processes rows in batches (10,000 rows per batch) to reduce memory pressure.
+- **Data Page Version 2**: Uses the more efficient data page format version 2 by default.
+- **Statistics Generation**: Enables page statistics for better query performance.
 
 ### 3. **Memory Management**
-- **Streaming Support**: Added `StreamingToParquet()` function for processing large datasets without loading everything into memory
-- **Configurable Row Group Size**: Allows customization of row group size based on dataset characteristics
-- **Sample-based Schema Inference**: Uses only a sample of rows (first 1000) for schema inference to reduce memory usage
+- **Streaming Support**: Added `StreamingToParquet()` function for processing large datasets without loading everything into memory.
+- **Configurable Row Group Size**: Allows customization of row group size based on dataset characteristics.
+- **Sample-based Schema Inference**: Uses only a sample of rows (first 1000) for schema inference to reduce memory usage.
 
 ### 4. **Configuration Flexibility**
-- **WriterConfig Structure**: Centralized configuration for all writer options
-- **Compression Codecs**: Support for multiple compression algorithms (Zstd, Gzip, Snappy, etc.)
-- **Page Buffer Control**: Fine-grained control over page and write buffer sizes
-- **Row Group Optimization**: Configurable row group sizes for different use cases
+- **WriterConfig Structure**: Centralized configuration for all writer options.
+- **Compression Codecs**: Support for multiple compression algorithms (Zstd, Gzip, Snappy, etc.).
+- **Page Buffer Control**: Fine-grained control over page and write buffer sizes.
+- **Row Group Optimization**: Configurable row group sizes for different use cases.
 
 ### 5. **Robustness Improvements**
-- **Better Error Handling**: More descriptive error messages with proper error wrapping
-- **Edge Case Handling**: Improved handling of empty datasets, null values, and mixed types
-- **Backward Compatibility**: The original `ToParquet()` function remains unchanged but now uses optimized internals
+- **Safe Complex Type Handling**: Arrays, maps, and nested objects are converted to JSON strings to avoid data corruption and library bugs.
+- **Better Error Handling**: More descriptive error messages with proper error wrapping.
+- **Edge Case Handling**: Improved handling of empty datasets, null values, and mixed types.
+- **Backward Compatibility**: The original `ToParquet()` function remains unchanged but now uses optimized internals.
 
 ## Usage Examples
 

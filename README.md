@@ -2,14 +2,18 @@
 
 [![Go](https://img.shields.io/badge/Go-1.18%2B-blue.svg)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/syntropiq/parqat)](https://github.com/syntropiq/parqat/releases)
+[![Release](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/syntropiq/parqat/releases)
 
 A lightweight, fast, and simple cat-like tool for converting between JSON and Parquet formats. Designed to sit perfectly in Unix pipelines alongside tools like `cat`, `tail`, `grep`, `sed`, `awk`, and more.
+
+**Current Version:** v1.0.0
 
 ## Features
 
 - **Bidirectional conversion**: JSON ↔ Parquet
-- **Streaming support**: Process large files efficiently
+- **Streaming support**: Process large files efficiently, with low memory usage
+- **SIMD-optimized**: Uses power-of-2 buffer sizes for maximum throughput (see [PERFORMANCE.md](PERFORMANCE.md))
+- **Safe complex type handling**: Automatically converts arrays, maps, and nested objects to JSON strings for data integrity
 - **Pipeline friendly**: Designed for Unix pipelines
 - **Head/tail support**: Extract specific rows from Parquet files
 - **Schema inference**: Automatically detects JSON structure
@@ -82,11 +86,17 @@ Usage:
   parqat [file] [flags]
 
 Flags:
-  -h, --help            Show help message
-  -v, --version         Show version information
-  -o, --output string   Output Parquet file path. If not provided, output is written to stdout.
-      --head int        Number of rows to read from the beginning (only for Parquet input)
-      --tail int        Number of rows to read from the end (only for Parquet input)
+  -h, --help                  Show help message
+  -v, --version               Show version information
+  -o, --output string         Output Parquet file path. If not provided, output is written to stdout.
+      --head int              Number of rows to read from the beginning (only for Parquet input)
+      --tail int              Number of rows to read from the end (only for Parquet input)
+      --compression string    Compression algorithm: zstd (default), snappy, gzip, none
+      --page-buffer-size int  Page buffer size in bytes (default: 262144)
+      --max-rows-per-group int  Maximum rows per row group (default: 1048576)
+      --data-page-version int Data page version (default: 2)
+      --enable-dictionary     Enable dictionary encoding (default: true)
+      --streaming             Enable streaming mode for large datasets
 ```
 
 ## Data Type Mapping
@@ -109,8 +119,12 @@ parqat is designed for performance:
 
 - **Static binary**: No runtime dependencies
 - **Streaming processing**: Efficient memory usage for large files
+- **SIMD-optimized**: Power-of-2 buffer sizes for best throughput (see [PERFORMANCE.md](PERFORMANCE.md))
+- **Safe complex type handling**: Converts arrays, maps, and nested objects to JSON strings for reliability
 - **Optimized builds**: Uses Go's optimization flags and UPX compression
 - **Minimal overhead**: Direct conversion with minimal data copying
+
+See [OPTIMIZATIONS.md](OPTIMIZATIONS.md) and [PERFORMANCE.md](PERFORMANCE.md) for advanced configuration and benchmarks.
 
 ## Examples
 

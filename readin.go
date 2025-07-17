@@ -11,6 +11,10 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
+/*
+FromParquet reads Parquet data from an io.Reader and writes JSON rows to the provided io.Writer.
+Supports optional head/tail arguments to limit output rows.
+*/
 func FromParquet(w io.Writer, r io.Reader, head, tail int) error {
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -29,6 +33,10 @@ func FromParquet(w io.Writer, r io.Reader, head, tail int) error {
 	return fromParquet(w, pr, head, tail)
 }
 
+/*
+FromParquetFile opens a Parquet file from disk and writes JSON rows to the provided io.Writer.
+Supports optional head/tail arguments to limit output rows.
+*/
 func FromParquetFile(w io.Writer, filePath string, head, tail int) error {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -49,6 +57,10 @@ func FromParquetFile(w io.Writer, filePath string, head, tail int) error {
 	return fromParquet(w, pr, head, tail)
 }
 
+/*
+fromParquet handles the core logic for converting a parquet.File to JSON output.
+It applies head/tail logic and writes each row as JSON.
+*/
 func fromParquet(w io.Writer, pr *parquet.File, head, tail int) error {
 	// Use buffered writer for better performance
 	bw := bufio.NewWriter(w)
